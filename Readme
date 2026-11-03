@@ -1,0 +1,19 @@
+> This project is for the Otari Dev Wilding hackathon
+
+# AI Fact-checker
+
+The system uses Otari hosted models for decisions and actions.
+The goal is to give the user a trustful response about their claims.
+
+## Trust pillars:
+- Different acclaimed sources
+- Facts stripped of biases
+- Capability of answering "I cannot verify"
+- Established facts vs recent controversial ones
+- Accuracy score
+
+## Tools
+- Otari
+- Python
+- Streamlit
+- Model: gpt-oss-20b
