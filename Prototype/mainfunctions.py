@@ -58,17 +58,7 @@ def assert_fact(client, model: str, claim: str, search: bool) -> dict:
     }
     answer["metadata"] = metadata
     
-    tool_calls = resp.additional_properties.get("otari_tool_calls")
-    answer["tool_calls"] = tool_calls
-
-    if (
-        not isinstance(answer, dict)
-        or type(answer.get("tool_calls")) is not list
-    ):
-        raise ValueError("Invalid classifier response")
-
-
-    return answer
+    return answer, resp
 
 
 
@@ -132,3 +122,18 @@ def extract_and_classify_claims(client, model: str, statement: str) -> tuple[dic
             raise ValueError("Invalid claim entry")
 
     return result, resp
+
+def try3(func, *args):
+    for attempt in range(3):
+        try:
+            print(f"Attempt {attempt + 1} for function {func.__name__}")
+            return func(*args)
+        except ValueError as e:
+            last_exception = e
+            print(f"Attempt {attempt + 1} failed with error: {e}")
+        import time
+        time.sleep(attempt * 2)
+    raise last_exception
+
+def fetch_reasoning(resp: ChatCompletion) -> str:
+    return resp.choices[0].message.reasoning

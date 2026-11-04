@@ -3,7 +3,7 @@ import io               # For capturing output
 from dotenv import load_dotenv
 import os
 from otari import OtariClient
-from mainfunctions import extract_and_classify_claims, assert_fact
+from mainfunctions import extract_and_classify_claims, assert_fact, try3, fetch_reasoning
 
 load_dotenv()
 OTARI_URL = os.getenv(
@@ -23,7 +23,14 @@ SYSTEM_PROMPT = "You are a concise, friendly truth-seeking journalist."
 client = OtariClient(api_base=OTARI_URL, 
                     api_key=OTARI_API_KEY)
 
-st.title("Otari Fact Checker")
+
+st.set_page_config(
+    page_title="Otari Fact Checker AI agent",
+    page_icon="🔎"
+)
+
+
+st.title("Otari Fact Checker AI agent")
 with st.expander("Models used"):
     st.write("Extraction and search routing:", OTARI_MODEL)
     st.write("Fact verification:", OTARI_VERIFICATION_MODEL)
@@ -33,43 +40,59 @@ if user_statement:
     st.write("You entered:", user_statement)
     
     with st.spinner("Extracting claims and deciding whether search is needed..."):
-        claims, _ = extract_and_classify_claims(client, EXTRACTION_POLICY, user_statement)
+        try:
+            claims, resp = try3(
+                extract_and_classify_claims, client, EXTRACTION_POLICY, user_statement
+            )
+        except ValueError:
+            st.error("Claim extraction failed after three attempts. Please try again.")
+            st.stop()
 
-    st.write("Extracted claims:", claims)
+    with st.expander("Reasoning"):
+        st.info(fetch_reasoning(resp))
 
+    with st.expander("Extracted claims:"):
+        for item in claims["claims"]:
+            st.info(f"Claim: {item['claim']}\n Is established: {item['is_established']}")
+    
     if not claims["claims"]:
         st.info("No verifiable factual claims found.")
 
     for item in claims["claims"]:
         claim = item["claim"]
         is_established = item["is_established"]
-        st.write(f"Claim: {claim}")
-
-        st.write("Can be assessed without web search:", is_established)
-        st.write("Needs web search:", not is_established)
-        st.write("Search decision explanation:", item["explanation"])
+        
+        st.markdown(f"**Claim:** **{claim}**")
+        st.write("Needs web search:", not is_established, "Explanation:", item["explanation"])
 
         with st.spinner("Asserting claimed fact..."):
-            answer = assert_fact(client, OTARI_VERIFICATION_MODEL, claim, not is_established)
+            try:
+                answer, resp = try3(
+                    assert_fact, client, VERIFICATION_POLICY, claim, not is_established
+                )
+            except ValueError:
+                st.error("Fact verification failed after three attempts. Please try again.")
+                st.stop()
         
-        st.write("Fact-checking result:", answer["verdict"])
-        st.write("Explanation:", answer["explanation"])
-        
+        with st.expander("Reasoning"):
+            st.info(fetch_reasoning(resp))
+
         with st.expander("Otari tool activity"):
-            tool_calls = answer["tool_calls"]
+            tool_calls = resp.additional_properties.get("otari_tool_calls")
             if tool_calls is None:
                 st.info(
                     "No tool activity metadata returned. "
-                    "This does not confirm whether a search occurred."
                 )
             elif not tool_calls:
                 st.info("Otari reported no tool calls.")
             else:
                 st.caption(
                     "Inspect the results and any errors below. "
-                    "A recorded call does not necessarily mean it succeeded."
                 )
                 st.json(tool_calls)
+
+        st.markdown(f"**Fact-checking result:** {answer['verdict']}")
+        st.markdown(f"**Explanation:** {answer['explanation']}")
 
         st.write("Citations provided by the model:")
         if answer["citations"]:
