@@ -3,7 +3,7 @@ import io               # For capturing output
 from dotenv import load_dotenv
 import os
 from otari import OtariClient
-from mainfunctions import extract_claims, is_established_fact, assert_fact
+from mainfunctions import extract_and_classify_claims, assert_fact
 
 load_dotenv()
 OTARI_URL = os.getenv(
@@ -14,6 +14,8 @@ OTARI_URL = os.getenv(
 OTARI_API_KEY = os.getenv("OTARI_API_KEY")
 OTARI_MODEL = os.getenv("OTARI_MODEL")
 OTARI_VERIFICATION_MODEL = os.getenv("OTARI_VERIFICATION_MODEL")
+EXTRACTION_POLICY = "claims-selector"
+VERIFICATION_POLICY = "assert-claiming"
 
 
 SYSTEM_PROMPT = "You are a concise, friendly truth-seeking journalist."
@@ -23,27 +25,29 @@ client = OtariClient(api_base=OTARI_URL,
 
 st.title("Otari Fact Checker")
 with st.expander("Models used"):
-    st.write("Extraction and search routing:", OTARI_MODEL)
+    st.write("Extraction and search routing:", EXTRACTION_POLICY)
     st.write("Fact verification:", OTARI_VERIFICATION_MODEL)
 
 user_statement = st.text_area("Enter a statement to fact-check:")
 if user_statement:
     st.write("You entered:", user_statement)
     
-    with st.spinner("Extracting claims..."):
-        claims = extract_claims(client, OTARI_MODEL, user_statement)
+    with st.spinner("Extracting claims and deciding whether search is needed..."):
+        claims, _ = extract_and_classify_claims(client, EXTRACTION_POLICY, user_statement)
 
     st.write("Extracted claims:", claims)
 
-    for claim in claims["claims"]:
+    if not claims["claims"]:
+        st.info("No verifiable factual claims found.")
+
+    for item in claims["claims"]:
+        claim = item["claim"]
+        is_established = item["is_established"]
         st.write(f"Claim: {claim}")
 
-        with st.spinner("Checking whether web search is needed..."):
-            established = is_established_fact(client, OTARI_MODEL, claim)
-            is_established = established["established"]
-
-        st.write("Is an established fact:", is_established)
+        st.write("Can be assessed without web search:", is_established)
         st.write("Needs web search:", not is_established)
+        st.write("Search decision explanation:", item["explanation"])
 
         with st.spinner("Asserting claimed fact..."):
             answer = assert_fact(client, OTARI_VERIFICATION_MODEL, claim, not is_established)
