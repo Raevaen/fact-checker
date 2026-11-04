@@ -25,7 +25,7 @@ client = OtariClient(api_base=OTARI_URL,
 
 st.title("Otari Fact Checker")
 with st.expander("Models used"):
-    st.write("Extraction and search routing:", EXTRACTION_POLICY)
+    st.write("Extraction and search routing:", OTARI_MODEL)
     st.write("Fact verification:", OTARI_VERIFICATION_MODEL)
 
 user_statement = st.text_area("Enter a statement to fact-check:")
