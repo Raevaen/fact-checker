@@ -1,0 +1,150 @@
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wikipedia-mcp-caddy
+data:
+  Caddyfile: |
+    otari-wiki-mcp.italynorth.cloudapp.azure.com {
+        reverse_proxy 127.0.0.1:8080
+    }
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: caddy-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: managed-csi
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wikipedia-mcp
+  labels:
+    app: wikipedia-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wikipedia-mcp
+  template:
+    metadata:
+      labels:
+        app: wikipedia-mcp
+    spec:
+      containers:
+        # Wikipedia MCP server
+        - name: server
+          image: myprototypes-hvehavadeebyeehe.azurecr.io/wikipedia-mcp:latest
+          args:
+            - "--transport"
+            - "http"
+            - "--host"
+            - "0.0.0.0"
+            - "--port"
+            - "8080"
+            - "--path"
+            - "/mcp"
+            - "--enable-cache"
+            - "--auth-mode"
+            - "static"
+            - "--auth-token"
+            - "$(MCP_AUTH_TOKEN)"
+          env:
+            - name: MCP_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: wikipedia-mcp-auth
+                  key: token
+          ports:
+            - name: mcp-http
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 20
+
+        # Caddy HTTPS reverse proxy
+        - name: caddy
+          image: caddy:2-alpine
+          ports:
+            - name: http
+              containerPort: 80
+            - name: https
+              containerPort: 443
+          volumeMounts:
+            - name: caddy-config
+              mountPath: /etc/caddy
+              readOnly: true
+            - name: caddy-data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+
+      volumes:
+        - name: caddy-config
+          configMap:
+            name: wikipedia-mcp-caddy
+        - name: caddy-data
+          persistentVolumeClaim:
+            claimName: caddy-data
+
+---
+# Internal service for the MCP application
+apiVersion: v1
+kind: Service
+metadata:
+  name: wikipedia-mcp
+spec:
+  type: ClusterIP
+  selector:
+    app: wikipedia-mcp
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+
+---
+# Public service for Caddy
+apiVersion: v1
+kind: Service
+metadata:
+  name: wikipedia-mcp-public
+  annotations:
+    service.beta.kubernetes.io/azure-dns-label-name: otari-wiki-mcp
+spec:
+  type: LoadBalancer
+  selector:
+    app: wikipedia-mcp
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+    - name: https
+      port: 443
+      targetPort: 443

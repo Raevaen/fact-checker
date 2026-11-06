@@ -10,8 +10,9 @@ def assert_fact(client, model: str, claim: str, search: bool) -> dict:
         "and explain that verification is incomplete."
         if search else
         "Assess the claim using stable, widely established knowledge only. "
-        "Do not claim to have searched or invent citations. "
-        # Add web_search tool to handle this case
+        #"Do not claim to have searched or invent citations. "
+        # Add MCP tool to handle this case
+        "Use wikipedia mcp tool for verification."
         "For recent, changing, obscure, or uncertain claims, report low "
         "confidence and explain that web verification is needed."
     )
@@ -98,11 +99,13 @@ def extract_and_classify_claims(client, model: str, statement: str) -> tuple[dic
                     'Return only JSON: {"claims": ['
                     '{"claim": "<claim>", "is_established": true, '
                     '"explanation": "<brief search decision summary>"}]}. '
+                    "Use the otari_web_fetch tool only when the user provide a link. "
                     'If no factual unbiased claims exist, return {"claims": []}.'
                 ),
             },
             {"role": "user", "content": statement},
         ],
+        tools=[{"type": "otari_web_fetch", "max_uses": 2}],
     )
 
     result = json.loads(resp.choices[0].message.content)
