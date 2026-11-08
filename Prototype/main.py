@@ -22,16 +22,27 @@ def main() -> None:
     EXTRACTION_POLICY = "claims-selector"
     VERIFICATION_POLICY = "assert-claiming"
 
-    client = OtariClient(api_base=OTARI_URL,
+    base_client = OtariClient(api_base=OTARI_URL,
                         api_key=OTARI_API_KEY)
 
     st.set_page_config(
         page_title="Otari Fact Checker AI agent",
-        page_icon="🔎"
+        page_icon="📓"
     )
 
     st.title("Otari Fact Checker AI agent")
-    
+
+    st.text_input("Enter your name:", key="user_name")
+    name = st.session_state.get("user_name", "").strip()
+    if not name:
+        st.info("Enter your name to start. Each name gets a $0.20 usage budget, " \
+        "I trust you don't abuse in this demo.")
+        st.stop()
+
+    user_id = "name:" + name.lower()
+
+    client = base_client
+
     with st.expander("Models used"):
         st.write("Extraction and search routing:", OTARI_MODEL)
         st.write("Fact verification:", OTARI_VERIFICATION_MODEL)
@@ -52,8 +63,8 @@ def main() -> None:
 
     st.header("2. Check with Wikipedia MCP")
     st.caption(
-        "Verifies the whole statement using only Wikipedia, through the "
-        "Wikipedia MCP server. No claim extraction and no web search."
+        "Verifies the whole statement using only Wikipedia MCP server. " \
+        "No claim extraction and no web search."
     )
     wiki_statement = st.text_area(
         "Statement to check against Wikipedia (MCP):",
@@ -75,6 +86,7 @@ def display_fact_checking(client, extraction_policy, verification_policy, user_s
             st.error("Claim extraction failed after three attempts. Please try again.")
             return
 
+    display_model(resp)    
     display_reasoning(resp)
 
     with st.expander("Extracted claims:"):
@@ -100,8 +112,8 @@ def display_fact_checking(client, extraction_policy, verification_policy, user_s
                 st.error("Fact verification failed after three attempts. Please try again.")
                 return
 
+        display_model(resp)
         display_reasoning(resp)
-
         display_otari_tool_activity(resp)
 
         st.markdown(f"**Fact-checking result:** {answer['verdict']}")
@@ -134,6 +146,7 @@ def display_wiki_search(client, verification_policy, wiki_statement):
             st.error(f"Wikipedia check failed: {exc}")
             return
 
+    display_model(resp)
     display_reasoning(resp)
 
     with st.expander(f"Wikipedia MCP tool usage ({len(answer['mcp_activity'])}/{MAX_MCP_CALLS} calls)"):
@@ -167,6 +180,9 @@ def display_reasoning(resp):
     with st.expander("Reasoning"):
         st.info(fetch_reasoning(resp))
 
+def display_model(resp):
+    with st.expander("Model used"):
+        st.write(resp.model)
 
 if __name__ == "__main__":
     main()

@@ -111,7 +111,7 @@ def extract_and_classify_claims(client, model: str, statement: str) -> tuple[dic
             },
             {"role": "user", "content": statement},
         ],
-        tools=[{"type": "otari_web_fetch", "max_uses": 2}],
+        # tools=[{"type": "otari_web_fetch", "max_uses": 2}],
     )
 
     result = json.loads(resp.choices[0].message.content)

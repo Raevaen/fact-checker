@@ -8,7 +8,7 @@ The goal is to give the user a trustful response about their claims.
 ## Trust pillars:
 - Different acclaimed sources
 - Facts stripped of biases
-- Capability of answering "I cannot verify"
+- Capability of answering "I cannot verify, Insufficient proof"
 - Established facts vs recent controversial ones
 - Accuracy score
 
