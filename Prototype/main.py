@@ -3,6 +3,7 @@ import io               # For capturing output
 from dotenv import load_dotenv
 import os
 from otari import OtariClient
+from otari.errors import AuthenticationError, InsufficientFundsError
 from otari._client.exceptions import ApiException
 from mainfunctions import (
     extract_and_classify_claims, assert_fact, try3, fetch_reasoning,
@@ -16,13 +17,17 @@ def main() -> None:
         "http://localhost:8000"
     )
 
-    OTARI_API_KEY = os.getenv("OTARI_API_KEY")
+    # Must be an Otari *service key* (dashboard: API keys -> Create key ->
+    # Advanced -> Service key, with a default end-user budget). A regular key
+    # rejects requests whose `user` field names anyone but the key's own user:
+    # "'user' field does not match the authenticated API key's user".
+    OTARI_API_KEY = os.getenv("OTARI_SERVICE_KEY") or os.getenv("OTARI_API_KEY")
     OTARI_MODEL = os.getenv("OTARI_MODEL")
     OTARI_VERIFICATION_MODEL = os.getenv("OTARI_VERIFICATION_MODEL")
     EXTRACTION_POLICY = "claims-selector"
     VERIFICATION_POLICY = "assert-claiming"
 
-    base_client = OtariClient(api_base=OTARI_URL,
+    client = OtariClient(api_base=OTARI_URL,
                         api_key=OTARI_API_KEY)
 
     st.set_page_config(
@@ -41,49 +46,63 @@ def main() -> None:
 
     user_id = "name:" + name.lower()
 
-    client = base_client
-
     with st.expander("Models used"):
         st.write("Extraction and search routing:", OTARI_MODEL)
         st.write("Fact verification:", OTARI_VERIFICATION_MODEL)
 
-    st.header("1. Fact-check with claim extraction and web search")
-    st.caption(
-        "Splits your text into individual claims, decides which need a web "
-        "search, then verifies each claim separately."
-    )
-    user_statement = st.text_area(
-        "Statement to fact-check (claim extraction + web search):",
-        key="fact_check_statement",
-    )
-    if user_statement:
-        display_fact_checking(client, EXTRACTION_POLICY, VERIFICATION_POLICY, user_statement)
+    search_tab, wiki_tab, math_tab = st.tabs(["Search", "Wiki", "Math"])
 
-    st.divider()
+    with search_tab:
+        st.header("Fact-check with claim extraction and web search")
+        st.caption(
+            "Splits your text into individual claims, decides which need a web "
+            "search, then verifies each claim separately."
+        )
+        with st.form("search_form"):
+            user_statement = st.text_area(
+                "Statement to fact-check (claim extraction + web search):",
+                key="fact_check_statement",
+            )
+            search_submitted = st.form_submit_button("Search")
 
-    st.header("2. Check with Wikipedia MCP")
-    st.caption(
-        "Verifies the whole statement using only Wikipedia MCP server. " \
-        "No claim extraction and no web search."
-    )
-    wiki_statement = st.text_area(
-        "Statement to check against Wikipedia (MCP):",
-        key="wiki_statement",
-    )
-    if wiki_statement:
-        display_wiki_search(client, VERIFICATION_POLICY, wiki_statement)
+        if search_submitted and user_statement:
+            display_fact_checking(
+                client, user_id, EXTRACTION_POLICY, VERIFICATION_POLICY, user_statement
+            )
+
+    with wiki_tab:
+        st.header("Check with Wikipedia MCP")
+        st.caption(
+            "Verifies the whole statement using only Wikipedia MCP server. "
+            "No claim extraction and no web search."
+        )
+        with st.form("wiki_form"):
+            wiki_statement = st.text_area(
+                "Statement to check against Wikipedia (MCP):",
+                key="wiki_statement",
+            )
+            wiki_submitted = st.form_submit_button("Check Wikipedia")
+
+        if wiki_submitted and wiki_statement:
+            display_wiki_search(client, user_id, VERIFICATION_POLICY, wiki_statement)
+
+    with math_tab:
+        pass
 
 
-def display_fact_checking(client, extraction_policy, verification_policy, user_statement):
+def display_fact_checking(client, user_id, extraction_policy, verification_policy, user_statement):
     st.write("You entered:", user_statement)
 
     with st.spinner("Extracting claims and deciding whether search is needed..."):
         try:
             claims, resp = try3(
-                extract_and_classify_claims, client, extraction_policy, user_statement
+                extract_and_classify_claims, client, user_id, extraction_policy, user_statement
             )
         except ValueError:
             st.error("Claim extraction failed after three attempts. Please try again.")
+            return
+        except (AuthenticationError, InsufficientFundsError) as exc:
+            display_gateway_error(exc)
             return
 
     display_model(resp)    
@@ -106,10 +125,13 @@ def display_fact_checking(client, extraction_policy, verification_policy, user_s
         with st.spinner("Asserting claimed fact..."):
             try:
                 answer, resp = try3(
-                    assert_fact, client, verification_policy, claim, not is_established
+                    assert_fact, client, user_id, verification_policy, claim, not is_established
                 )
             except ValueError:
                 st.error("Fact verification failed after three attempts. Please try again.")
+                return
+            except (AuthenticationError, InsufficientFundsError) as exc:
+                display_gateway_error(exc)
                 return
 
         display_model(resp)
@@ -129,12 +151,15 @@ def display_fact_checking(client, extraction_policy, verification_policy, user_s
     st.success("Analysis complete.")
 
 
-def display_wiki_search(client, verification_policy, wiki_statement):
+def display_wiki_search(client, user_id, verification_policy, wiki_statement):
     st.write("You entered:", wiki_statement)
 
     with st.spinner("Checking the statement with the Wikipedia MCP server..."):
         try:
-            answer, resp = assert_via_wikipedia(client, verification_policy, wiki_statement)
+            answer, resp = assert_via_wikipedia(client, user_id, verification_policy, wiki_statement)
+        except (AuthenticationError, InsufficientFundsError) as exc:
+            display_gateway_error(exc)
+            return
         except ApiException as exc:
             request_id = exc.headers.get("otari-request-id") if exc.headers else None
             st.error(
@@ -159,6 +184,21 @@ def display_wiki_search(client, verification_policy, wiki_statement):
     st.markdown(f"**Explanation:** {answer['explanation']}")
 
     st.success("Wikipedia check complete.")
+
+
+def display_gateway_error(exc):
+    if isinstance(exc, InsufficientFundsError):
+        st.warning(
+            "You've used up your $0.20 demo budget. It comes back when the "
+            "budget period resets. Thanks for trying the fact checker!"
+        )
+    else:
+        st.error(
+            "The gateway rejected this user id. The app must run on an Otari "
+            "service key so each name gets its own budget (dashboard: API keys "
+            "-> Create key -> Advanced -> Service key). "
+            f"Details: {exc}"
+        )
 
 
 def display_otari_tool_activity(resp):
