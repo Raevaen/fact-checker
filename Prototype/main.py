@@ -37,6 +37,9 @@ def main() -> None:
 
     st.title("Otari Fact Checker AI agent")
 
+    st.write("Demo of the Fact Checker AI agent for the Otari hackathon started during MozFest 2026." \
+             " Each user gets a limited usage budget for the demo and many security measures are missing, so please use responsibly.")
+
     st.text_input("Enter your name:", key="user_name")
     name = st.session_state.get("user_name", "").strip()
     if not name:
