@@ -7,6 +7,8 @@ from otari._client.exceptions import ApiException
 from otari._client.models import CCChatCompletionMessageFunctionToolCall
 from otari._client.models.mcp_execute_request import McpExecuteRequest
 
+MAX_TOOL_ITERATIONS = 24
+
 def assert_fact(client, user_id: str, model: str, claim: str, search: bool) -> dict:
     search_policy = (
         "Assess the claim using the supplied web evidence. "
@@ -45,6 +47,7 @@ def assert_fact(client, user_id: str, model: str, claim: str, search: bool) -> d
     resp = client.completion(
             model=model,
             user=user_id,
+            max_tool_iterations=MAX_TOOL_ITERATIONS,
             messages=[
                 {
                     "role": "system",
@@ -78,6 +81,7 @@ def extract_and_classify_claims(client, user_id: str, model: str, statement: str
     resp = client.completion(
         model=model,
         user=user_id,
+        max_tool_iterations=MAX_TOOL_ITERATIONS,
         messages=[
             {
                 "role": "system",
@@ -245,6 +249,7 @@ def assert_via_wikipedia(client, user_id: str, model: str, statement: str) -> tu
         resp = client.completion(
             model=model,
             user=user_id,
+            max_tool_iterations=MAX_TOOL_ITERATIONS,
             messages=messages,
             tools=[] if limit_reached else tools,
             tool_choice="none" if limit_reached else "auto",

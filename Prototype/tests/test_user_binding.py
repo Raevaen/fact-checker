@@ -69,6 +69,7 @@ def make_tool_call(call_id="call_1", name="search_wikipedia", arguments='{"query
 def assert_every_completion_bound_to_user(testcase, client):
     testcase.assertGreater(client.completion.call_count, 0)
     for mock_call in client.completion.call_args_list:
+        testcase.assertEqual(mock_call.kwargs.get("max_tool_iterations"), 24)
         testcase.assertEqual(
             mock_call.kwargs.get("user"),
             USER_ID,
