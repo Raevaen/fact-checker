@@ -108,12 +108,11 @@ def display_fact_checking(client, user_id, extraction_policy, verification_polic
             display_gateway_error(exc)
             return
 
-    display_model(resp)    
-    display_reasoning(resp)
-
-    with st.expander("Extracted claims:"):
+    with st.expander("Claim extraction details", expanded=False):
+        display_reasoning(resp)
+        st.caption("Extracted claims")
         for item in claims["claims"]:
-            st.info(f"Claim: {item['claim']}\n Is established: {item['is_established']}")
+            st.write(f"Claim: {item['claim']}\n Is established: {item['is_established']}")
 
     if not claims["claims"]:
         st.info("No verifiable factual claims found.")
@@ -123,7 +122,6 @@ def display_fact_checking(client, user_id, extraction_policy, verification_polic
         is_established = item["is_established"]
 
         st.markdown(f"**Claim:** **{claim}**")
-        st.write("Needs web search:", not is_established, "Explanation:", item["explanation"])
 
         with st.spinner("Asserting claimed fact..."):
             try:
@@ -137,19 +135,14 @@ def display_fact_checking(client, user_id, extraction_policy, verification_polic
                 display_gateway_error(exc)
                 return
 
-        display_model(resp)
-        display_reasoning(resp)
-        display_otari_tool_activity(resp)
+        with st.expander("Reasoning and tool activity", expanded=False):
+            st.caption("Search decision")
+            st.write("Needs web search:", not is_established)
+            st.write(item["explanation"])
+            display_reasoning(resp)
+            display_otari_tool_activity(resp)
 
-        st.markdown(f"**Fact-checking result:** {answer['verdict']}")
-        st.markdown(f"**Explanation:** {answer['explanation']}")
-
-        st.write("Citations provided by the model:")
-        if answer["citations"]:
-            for citation in answer["citations"]:
-                st.write(citation)
-        else:
-            st.info("No citations provided.")
+        display_fact_check_result(answer)
 
     st.success("Analysis complete.")
 
@@ -174,19 +167,30 @@ def display_wiki_search(client, user_id, verification_policy, wiki_statement):
             st.error(f"Wikipedia check failed: {exc}")
             return
 
-    display_model(resp)
-    display_reasoning(resp)
-
-    with st.expander(f"Wikipedia MCP tool usage ({len(answer['mcp_activity'])}/{MAX_MCP_CALLS} calls)"):
+    with st.expander("Reasoning and tool activity", expanded=False):
+        display_reasoning(resp)
+        st.caption(f"Wikipedia MCP tool usage ({len(answer['mcp_activity'])}/{MAX_MCP_CALLS} calls)")
         if answer["mcp_activity"]:
             st.json(answer["mcp_activity"])
         else:
-            st.info("The model did not call any Wikipedia MCP tool.")
+            st.caption("The model did not call any Wikipedia MCP tool.")
 
-    st.markdown(f"**Fact-checking result:** {answer['verdict']}")
-    st.markdown(f"**Explanation:** {answer['explanation']}")
+    display_fact_check_result(answer)
 
     st.success("Wikipedia check complete.")
+
+
+def display_fact_check_result(answer):
+    with st.container(border=True):
+        st.subheader("Fact-checking result")
+        st.markdown(f"**Verdict:** {answer['verdict'].replace('_', ' ').capitalize()}")
+        st.markdown(f"**Explanation:** {answer['explanation']}")
+        st.markdown("**Sources cited by the model**")
+        if answer["citations"]:
+            for citation in answer["citations"]:
+                st.write(citation)
+        else:
+            st.caption("No citations provided.")
 
 
 def display_gateway_error(exc):
@@ -205,23 +209,18 @@ def display_gateway_error(exc):
 
 
 def display_otari_tool_activity(resp):
-    with st.expander("Otari tool activity"):
-        tool_calls = resp.additional_properties.get("otari_tool_calls")
-        if tool_calls is None:
-            st.info(
-                        "No tool activity metadata returned. "
-                    )
-        elif not tool_calls:
-            st.info("Otari reported no tool calls.")
-        else:
-            st.caption(
-                        "Inspect the results and any errors below. "
-                    )
-            st.json(tool_calls)
+    st.caption("Otari tool activity")
+    tool_calls = resp.additional_properties.get("otari_tool_calls")
+    if tool_calls is None:
+        st.caption("No tool activity metadata returned.")
+    elif not tool_calls:
+        st.caption("Otari reported no tool calls.")
+    else:
+        st.json(tool_calls)
 
 def display_reasoning(resp):
-    with st.expander("Reasoning"):
-        st.info(fetch_reasoning(resp))
+    st.caption("Model reasoning")
+    st.text(fetch_reasoning(resp))
 
 def display_model(resp):
     with st.expander("Model used"):

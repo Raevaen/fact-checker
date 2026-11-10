@@ -33,7 +33,6 @@ MODEL = "openai/gpt-oss-120b"
 
 VERDICT_JSON = json.dumps({
     "verdict": "supported",
-    "confidence": "high",
     "explanation": "ok",
     "citations": [],
 })
@@ -97,6 +96,8 @@ class UserBindingCompletionTests(unittest.TestCase):
 
         self.assertEqual(answer["verdict"], "supported")
         assert_every_completion_bound_to_user(self, client)
+        prompt = client.completion.call_args.kwargs["messages"][0]["content"]
+        self.assertNotIn("confidence", prompt.lower())
         tools = client.completion.call_args.kwargs["tools"]
         self.assertEqual(tools, [{"type": "otari_web_search", "max_uses": 4}])
 
@@ -158,6 +159,8 @@ class McpFlowTests(unittest.TestCase):
         self.assertEqual(len(answer["mcp_activity"]), 1)
         self.assertEqual(client.completion.call_count, 2)
         assert_every_completion_bound_to_user(self, client)
+        prompt = client.completion.call_args_list[0].kwargs["messages"][0]["content"]
+        self.assertNotIn("confidence", prompt.lower())
 
     def test_mcp_execute_called_once_with_valid_request_and_no_user_kwarg(self):
         client = MagicMock()
