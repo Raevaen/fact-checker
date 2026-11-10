@@ -4,6 +4,7 @@
 
 The system uses Otari hosted models for decisions and actions.
 The goal is to give the user a trustful response about their claims.
+The hackathon rubric takes priority for the time being.
 
 ## Trust pillars:
 - Different acclaimed sources
@@ -16,9 +17,4 @@ The goal is to give the user a trustful response about their claims.
 - Otari
 - Python
 - Streamlit
-- Model: gpt-oss-20b
-
-## Prototype usage
-- Choose Search for claim extraction and web search, or Wiki for Wikipedia verification.
-- Submit using the tab's button or Cmd+Enter in its text area. Only that form runs, even if both text areas contain text.
-- The Math tab is reserved for future functionality and is currently empty.
+- Models: gpt-oss-safeguard-20b, gpt-oss-safeguard-120b
