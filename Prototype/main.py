@@ -109,10 +109,10 @@ def display_fact_checking(client, user_id, extraction_policy, verification_polic
             return
 
     with st.expander("Claim extraction details", expanded=False):
-        display_reasoning(resp)
         st.caption("Extracted claims")
         for item in claims["claims"]:
             st.write(f"Claim: {item['claim']}\n Is established: {item['is_established']}")
+        display_reasoning(resp)
 
     if not claims["claims"]:
         st.info("No verifiable factual claims found.")
@@ -220,11 +220,11 @@ def display_otari_tool_activity(resp):
 
 def display_reasoning(resp):
     st.caption("Model reasoning")
-    st.text(fetch_reasoning(resp))
+    st.caption(fetch_reasoning(resp))
 
 def display_model(resp):
     with st.expander("Model used"):
-        st.write(resp.model)
+        st.write(resp.model) # displays the policy
 
 if __name__ == "__main__":
     main()
