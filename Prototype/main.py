@@ -49,9 +49,9 @@ def main() -> None:
 
     user_id = "name:" + name.lower()
 
-    with st.expander("Models used"):
-        st.write("Extraction and search routing:", OTARI_MODEL)
-        st.write("Fact verification:", OTARI_VERIFICATION_MODEL)
+    # with st.expander("Models used"):
+    #     st.write("Extraction and search routing:", OTARI_MODEL)
+    #     st.write("Fact verification:", OTARI_VERIFICATION_MODEL)
 
     search_tab, wiki_tab, math_tab = st.tabs(["Search", "Wiki", "Math"])
 
